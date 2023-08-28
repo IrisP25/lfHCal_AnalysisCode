@@ -151,7 +151,7 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     return np.convolve( m[::-1], y, mode='valid')
 
 
-def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,counter):
+def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
                             ,range=(0,np.max(data['data']['high_gain']+1)),
          histtype='step', density  = True)
@@ -175,18 +175,19 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,counter):
     
     #print (peak_dist,"peak Dist")
     x = np.linspace(0,np.max(data['data']['high_gain']), len(content))
-    r, cov = scipy.optimize.curve_fit(sps, centers, content, p0 = [0, np.median(peak_dist), 5, 5, np.median(data['data']['high_gain'])/np.median(peak_dist)])
+    r, cov = scipy.optimize.curve_fit(sps, centers, content, p0 = [0, np.median(peak_dist), base, base, np.median(data['data']['high_gain'])/np.median(peak_dist)])
     multigauss, peaks =  sps(x, *r, output_single_peaks=True)
     print ("Done with the first fir with same amplitudes ")
-    
+    plt.show()
     plt.plot(x, multigauss, color='C2',label = f'Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.')
     for peak in peaks:
         plt.plot(x, peak, '--', color = 'C1')
     plt.plot(x, sps(x, *r),color='C3')
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
-
-    plt.legend(fontsize = 'x-large')
+    plt.title(SiPM+" @ 3.5 Vov")
+    plt.legend(loc='best')
+    #plt.legend(fontsize = 'x-large')
     plt.figure()
     plt.savefig(directory + '/' + 'SPE_SPSwithoutSingleGaussians_'+plotName+'.png')
     plt.show()
@@ -197,17 +198,17 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,counter):
 
     centers = (bins[:-1] + bins[1:])/2'''
     r2, cov2 = scipy.optimize.curve_fit(sps_freeamp_fit, centers, content, p0 = [*r[:-1], 0, *poisson_ampls(r[-1])])
-    multigauss, peaks =  sps_freeamp(x, *r2, output_single_peaks=True)
+    multigauss1, peaks1 =  sps_freeamp(x, *r2, output_single_peaks=True)
     print ("Doing the free amp fit, almost done")
     
-    plt.plot(x, multigauss, color='C2', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 1)
-    for peak in peaks:
+    plt.plot(x, multigauss1, color='C2', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 1)
+    for peak in peaks1:
         plt.plot(x, peak, '--', color = 'C1')
         
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
-
-    plt.legend(fontsize = 'x-large')
+    plt.title(SiPM+" @ 3.5 Vov")
+    dplt.legend(loc='best')
     plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
     
     plt.figure()
@@ -215,14 +216,23 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,counter):
     plt.plot(x, multigauss, color='C1', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 3)
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
-
-    plt.legend(fontsize = 'x-large')
+    plt.title(SiPM+" @ 3.5 Vov")
+    plt.legend(loc='best')
     plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
 
     plt.show()
+    
+    plt.plot(x, multigauss, color='C1', label = f'Poisson K Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.', lw =1)
+    plt.plot(x, multigauss1, color='C2', label = f'Free Amp Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 2)
+    plt.xlabel('Signal Amplitude in ADC')
+    plt.ylabel('Normalized Counts')
+    plt.title(SiPM+" @ 3.5 Vov")
+    plt.legend(loc='best')
+    plt.savefig(directory + '/' + 'freeAmpvsPoissonK_'+plotName+'.png')
+    plt.show()
     percentageErr=(( sps(x, *r)-content)/content)*100
-    percentageErr2=((multigauss-content)/content)*100
-    percentageErr3 =((sps(x, *r)-multigauss)/multigauss)*100
+    percentageErr2=((multigauss1-content)/content)*100
+    percentageErr3 =((sps(x, *r)-multigauss1)/multigauss1)*100
     
     
     return r2,np.median(percentageErr),np.median(percentageErr2),np.median(percentageErr3)
@@ -234,6 +244,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("inputDirectory",help="Input Directory to analyze")
 parser.add_argument("typeOfData",help="Input type of data to analyze")
 parser.add_argument("activeChannels",help="Number of channels in run")
+
 #dataFile="/Users/irisponce/Documents/RHI/lfHCal/CorrectSPEfiles-0731/S14160-1315_57Gain_5p5Amplitude_40P0V/"
 args=parser.parse_args()
 activeChannels=int(args.activeChannels)
@@ -244,11 +255,16 @@ print ("Analyzing directory: ",dataFile)
 data = parseData(args.inputDirectory,activeChannels)
 print ("Data parsed, now proceeding to perfrom fits.")
 #data=parseData("/Users/irisponce/Documents/RHI/lfHCal/SPEspectra_07312023/S4K33C0135L-9_57Gain_5p0Amplitude_30P5V/",1)
+if dataFile.find("/") > dataFile.find("_"):##checking that we are in a subdirectory rather than directory
+    SiPMName=dataFile[0:(dataFile.find("_"))]
+else:
+    SiPMName=dataFile[dataFile.find("/")+1:(dataFile.find("_"))]
 
+print("SiPM ",SiPMName)
 if dataType==1:
     print ("Making SPE fits")
     try:
-        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,5,dataFile,"try1",0)
+        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try1",5,SiPMName)
 
         print (percentageErr,percentageErr2,percentageErr3)
     except:
@@ -261,17 +277,26 @@ if dataType==1:
     if r2[1] <0:
         try:
             print ("Fitting again,we got a negative value for ADC/PE, take 2")
-            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try2",0)
+            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try2",5,SiPMName)
             print("try 2, ",percentageErr,percentageErr2,percentageErr3)
         except:
+            
             pass
         
     if abs(percentageErr3)> 4:
         #try to refit not sure what should change LOL
         try:
             print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
-            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try3",0)
+            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",15,SiPMName)
             
+            print("try3, ",percentageErr,percentageErr2,percentageErr3)
+        except:
+            pass
+    else:
+        try:
+            print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
+            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try3",0,SiPMName)
+        
             print("try3, ",percentageErr,percentageErr2,percentageErr3)
         except:
             pass
