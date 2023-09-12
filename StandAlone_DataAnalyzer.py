@@ -29,8 +29,8 @@ import pylandau
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 current_palette = sns.color_palette('colorblind', 10)
-import warnings
-warnings.filterwarnings("ignore")
+#import warnings
+#warnings.filterwarnings("ignore")
 
 
 from dt5202 import dt5202_crunch
@@ -103,7 +103,7 @@ def sps_freeamp_fit(x, ped = 50, gain = 50, width_base = 5, width_scale = 1, ped
     return np.array(out)
     
 def sps_freeamp(x, ped = 50, gain = 50, width_base = 5, width_scale = 1, ped_offs = 0, *ampls, output_single_peaks = False):
-
+    print (len(x))
     out = np.zeros_like(x)
     out_peaks = []
 
@@ -119,7 +119,10 @@ def sps_freeamp(x, ped = 50, gain = 50, width_base = 5, width_scale = 1, ped_off
         
         out += peak
         out_peaks.append(peak)
-
+    ##trying to debug
+    #print (len(out))
+    #print (out_peaks)
+    #print (len(out_peaks))
     if output_single_peaks:
         return np.array(out), np.array(out_peaks)
     else:
@@ -165,7 +168,10 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     peaks_in_interval = scipy.signal.find_peaks_cwt(yhat, widths=peakfinderWidth)
     peak_dist = np.diff(peaks_in_interval)
     print (np.median(peak_dist),"peakDist")
-
+    print (peak_dist)
+    
+    print (np.median(data['data']['high_gain']))
+    print (np.median(data['data']['high_gain'])/np.median(peak_dist))
     '''
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
                             ,range=(0,np.max(data['data']['high_gain']+1)),
@@ -177,41 +183,57 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     x = np.linspace(0,np.max(data['data']['high_gain']), len(content))
     r, cov = scipy.optimize.curve_fit(sps, centers, content, p0 = [0, np.median(peak_dist), base, base, np.median(data['data']['high_gain'])/np.median(peak_dist)])
     multigauss, peaks =  sps(x, *r, output_single_peaks=True)
+    print (r[1],"gain for the poissonk fit")
     print ("Done with the first fir with same amplitudes ")
-    plt.show()
+    #plt.show()
     plt.plot(x, multigauss, color='C2',label = f'Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.')
     for peak in peaks:
         plt.plot(x, peak, '--', color = 'C1')
+        #print ("plotting individual peaks for poisson k fit")
     plt.plot(x, sps(x, *r),color='C3')
+    print("trying to plot the SPS")
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
     plt.title(SiPM+" @ 3.5 Vov")
     plt.legend(loc='best')
     #plt.legend(fontsize = 'x-large')
-    plt.figure()
+    #plt.figure()
     plt.savefig(directory + '/' + 'SPE_SPSwithoutSingleGaussians_'+plotName+'.png')
-    plt.show()
+    plt.clf()
+    print ("after saving the sps picture")
+
+    #plt.close(fig)
+    print ("skipping closing the sps picture")
+    #plt.show()
     '''
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
                             ,range=(0,np.max(data['data']['high_gain']+1)),
          histtype='step', density  = True)
 
     centers = (bins[:-1] + bins[1:])/2'''
+    print ("second fit on the way")
     r2, cov2 = scipy.optimize.curve_fit(sps_freeamp_fit, centers, content, p0 = [*r[:-1], 0, *poisson_ampls(r[-1])])
+    print (r2[1]," this the ADC/PE gain")
+
     multigauss1, peaks1 =  sps_freeamp(x, *r2, output_single_peaks=True)
-    print ("Doing the free amp fit, almost done")
-    
+    print ("After doing the free amp fit, almost done")
+    print (multigauss1,"printing multigaus info")
     plt.plot(x, multigauss1, color='C2', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 1)
+    
     for peak in peaks1:
         plt.plot(x, peak, '--', color = 'C1')
-        
+        #print ("plotting individual free amp peaks")
+    
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
     plt.title(SiPM+" @ 3.5 Vov")
-    dplt.legend(loc='best')
+    plt.legend(loc='best')
     plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
-    
-    plt.figure()
+    plt.clf()
+    #plt.close(fig)
+    print ("plotting free amp fit")
+    print (r2[1],"this is after plotting, printing gain")
+    #plt.figure()
     plt.plot(centers,content)
     plt.plot(x, multigauss, color='C1', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 3)
     plt.xlabel('Signal Amplitude in ADC')
@@ -219,9 +241,10 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     plt.title(SiPM+" @ 3.5 Vov")
     plt.legend(loc='best')
     plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
-
-    plt.show()
-    
+    plt.clf()
+    #plt.close(fig)
+    #plt.show()
+    print (r2[1],"this is after plotting pt.2, printing gain")
     plt.plot(x, multigauss, color='C1', label = f'Poisson K Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.', lw =1)
     plt.plot(x, multigauss1, color='C2', label = f'Free Amp Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 2)
     plt.xlabel('Signal Amplitude in ADC')
@@ -229,12 +252,14 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     plt.title(SiPM+" @ 3.5 Vov")
     plt.legend(loc='best')
     plt.savefig(directory + '/' + 'freeAmpvsPoissonK_'+plotName+'.png')
-    plt.show()
+    plt.clf()
+    #plt.close()
+    #plt.show()
     percentageErr=(( sps(x, *r)-content)/content)*100
     percentageErr2=((multigauss1-content)/content)*100
     percentageErr3 =((sps(x, *r)-multigauss1)/multigauss1)*100
-    
-    
+    print ("plotting free amp vs poisson k fit")
+    print (r2[1],"this is before we return r2, the gain")
     return r2,np.median(percentageErr),np.median(percentageErr2),np.median(percentageErr3)
     
     ###
@@ -264,8 +289,8 @@ print("SiPM ",SiPMName)
 if dataType==1:
     print ("Making SPE fits")
     try:
-        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try1",5,SiPMName)
-
+        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try1",5,SiPMName)
+        
         print (percentageErr,percentageErr2,percentageErr3)
     except:
         print ("Error ocurred during first fitting, will try again")
