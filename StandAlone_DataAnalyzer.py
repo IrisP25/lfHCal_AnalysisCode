@@ -24,7 +24,7 @@ from glob import glob
 import argparse
 import shutil
 import pylandau
-
+from datetime import datetime
 
 
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -156,7 +156,7 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
 
 def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
-                            ,range=(0,np.max(data['data']['high_gain']+1)),
+                            ,range=(0,np.max(data['data']['high_gain'])),
          histtype='step', density  = True)
     centers = (bins[:-1] + bins[1:])/2
     yhat = savitzky_golay(content, 51, 3)
@@ -174,23 +174,24 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     print (np.median(data['data']['high_gain'])/np.median(peak_dist))
     '''
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
-                            ,range=(0,np.max(data['data']['high_gain']+1)),
+                            ,range=(0,np.max(data['data']['high_gain']),
          histtype='step', density  = True)
 
     centers = (bins[:-1] + bins[1:])/2'''
     
     #print (peak_dist,"peak Dist")
     x = np.linspace(0,np.max(data['data']['high_gain']), len(content))
-    r, cov = scipy.optimize.curve_fit(sps, centers, content, p0 = [0, np.median(peak_dist), base, base, np.median(data['data']['high_gain'])/np.median(peak_dist)])
+    r, cov = scipy.optimize.curve_fit(sps, centers, content, p0 = [0, np.median(peak_dist), base, base, np.median(data['data']['high_gain'])/np.median(peak_dist)],sigma=np.where(content>0, np.sqrt(content), 1))
     multigauss, peaks =  sps(x, *r, output_single_peaks=True)
     print (r[1],"gain for the poissonk fit")
+    print (np.sqrt(np.diag(cov)),"poissonk covariant matrix")
     print ("Done with the first fir with same amplitudes ")
     #plt.show()
-    plt.plot(x, multigauss, color='C2',label = f'Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.')
+    plt.plot(x, multigauss, color='C1',label = f'Multi-Gauss Fit, gain = {r[1]:.2f} ADC/p.e.')
     for peak in peaks:
         plt.plot(x, peak, '--', color = 'C1')
         #print ("plotting individual peaks for poisson k fit")
-    plt.plot(x, sps(x, *r),color='C3')
+    plt.plot(x, sps(x, *r))
     print("trying to plot the SPS")
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
@@ -198,27 +199,27 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     plt.legend(loc='best')
     #plt.legend(fontsize = 'x-large')
     #plt.figure()
-    plt.savefig(directory + '/' + 'SPE_SPSwithoutSingleGaussians_'+plotName+'.png')
+    plt.savefig(directory + '/' + 'PoissonKfit_'+plotName+'.png')
     plt.clf()
     print ("after saving the sps picture")
 
     #plt.close(fig)
     print ("skipping closing the sps picture")
     #plt.show()
-    '''
+    
     content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
-                            ,range=(0,np.max(data['data']['high_gain']+1)),
+                            ,range=(0,np.max(data['data']['high_gain'])),
          histtype='step', density  = True)
 
-    centers = (bins[:-1] + bins[1:])/2'''
+    centers = (bins[:-1] + bins[1:])/2
     print ("second fit on the way")
-    r2, cov2 = scipy.optimize.curve_fit(sps_freeamp_fit, centers, content, p0 = [*r[:-1], 0, *poisson_ampls(r[-1])])
-    print (r2[1]," this the ADC/PE gain")
-
+    r2, cov2 = scipy.optimize.curve_fit(sps_freeamp_fit, centers, content, p0 = [*r[:-1], 0, *poisson_ampls(r[-1])],sigma=np.where(content>0, np.sqrt(content), 1))
+    print (r2[1]," this the ADC/PE gain for the free amplitude fit")
+    print (np.sqrt(np.diag(cov2)),"free amplitude covariant matrix")
     multigauss1, peaks1 =  sps_freeamp(x, *r2, output_single_peaks=True)
     print ("After doing the free amp fit, almost done")
     print (multigauss1,"printing multigaus info")
-    plt.plot(x, multigauss1, color='C2', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 1)
+    plt.plot(x, multigauss1, color='C1', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 3)
     
     for peak in peaks1:
         plt.plot(x, peak, '--', color = 'C1')
@@ -228,20 +229,21 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     plt.ylabel('Normalized Counts')
     plt.title(SiPM+" @ 3.5 Vov")
     plt.legend(loc='best')
-    plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
+    plt.savefig(directory + '/' + 'freeAmplitudeFit_'+plotName+'.png')
     plt.clf()
     #plt.close(fig)
     print ("plotting free amp fit")
     print (r2[1],"this is after plotting, printing gain")
     #plt.figure()
-    plt.plot(centers,content)
+    #plt.plot(centers,content)
+    '''
     plt.plot(x, multigauss, color='C1', label = f'Multi-Gauss Fit, gain = {r2[1]:.2f} ADC/p.e.', lw = 3)
     plt.xlabel('Signal Amplitude in ADC')
     plt.ylabel('Normalized Counts')
     plt.title(SiPM+" @ 3.5 Vov")
     plt.legend(loc='best')
     plt.savefig(directory + '/' + 'SPE_withoutSingleGaussians_'+plotName+'.png')
-    plt.clf()
+    plt.clf()'''
     #plt.close(fig)
     #plt.show()
     print (r2[1],"this is after plotting pt.2, printing gain")
@@ -279,6 +281,8 @@ dataFile=str(args.inputDirectory)
 print ("Analyzing directory: ",dataFile)
 data = parseData(args.inputDirectory,activeChannels)
 print ("Data parsed, now proceeding to perfrom fits.")
+curDate=datetime.today().strftime('%Y-%m-%d-%H-%M')
+fileOut = open("fits"+curDate,"w") 
 #data=parseData("/Users/irisponce/Documents/RHI/lfHCal/SPEspectra_07312023/S4K33C0135L-9_57Gain_5p0Amplitude_30P5V/",1)
 if dataFile.find("/") > dataFile.find("_"):##checking that we are in a subdirectory rather than directory
     SiPMName=dataFile[0:(dataFile.find("_"))]
@@ -289,7 +293,7 @@ print("SiPM ",SiPMName)
 if dataType==1:
     print ("Making SPE fits")
     try:
-        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try1",5,SiPMName)
+        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try1",5,SiPMName)
         
         print (percentageErr,percentageErr2,percentageErr3)
     except:
@@ -329,9 +333,24 @@ if dataType==1:
 elif dataType==2:
     print ("Analyzing cosmic data" )
     print ("STILL NEED TO DO THIS PART")
-    content, bins, _ = plt.hist(data['data']['high_gain'],bins=np.max(data['data']['high_gain'])
-                            ,range=(0,np.max(data['data']['high_gain']+1)),
+
+    
+    
+    x=np.linspace(0,7950,7950)
+    
+    #we want to calculate this for however many channels we have ;)
+    
+    for i_channel in range(0,activeChannel):
+        content, bins, _ = plt.hist(data['data']['high_gain'][:,i_channel],bins=7950
+                            ,range=(0,7950),
                         histtype='step', density  = True)
-    centers = (bins[:-1] + bins[1:])/2
+        centers = (bins[:-1] + bins[1:])/2
+        mpv=np.median(data['data']['low_gain'][:,i_channel])
+        eta=200
+        sigma=200
+        A=np.max(content)
+        coeff, pcov = scipy.optimize.curve_fit(pylandau.langau, centers1,content1, p0=(mpv, eta, sigma, A))
+        
+    
     #plt.plot()
 
