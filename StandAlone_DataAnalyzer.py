@@ -262,7 +262,7 @@ def CalculateSiPMGain(data,peakfinderWidth,directory,plotName,base,SiPM):
     percentageErr3 =((sps(x, *r)-multigauss1)/multigauss1)*100
     print ("plotting free amp vs poisson k fit")
     print (r2[1],"this is before we return r2, the gain")
-    return r2,np.median(percentageErr),np.median(percentageErr2),np.median(percentageErr3)
+    return r2,cov2,np.median(percentageErr),np.median(percentageErr2),np.median(percentageErr3)
     
     ###
 
@@ -282,20 +282,21 @@ print ("Analyzing directory: ",dataFile)
 data = parseData(args.inputDirectory,activeChannels)
 print ("Data parsed, now proceeding to perfrom fits.")
 curDate=datetime.today().strftime('%Y-%m-%d-%H-%M')
-fileOut = open("fits"+curDate,"w") 
+fileOut = open(dataFile+ "/fits"+curDate+".txt","w")
 #data=parseData("/Users/irisponce/Documents/RHI/lfHCal/SPEspectra_07312023/S4K33C0135L-9_57Gain_5p0Amplitude_30P5V/",1)
 if dataFile.find("/") > dataFile.find("_"):##checking that we are in a subdirectory rather than directory
     SiPMName=dataFile[0:(dataFile.find("_"))]
 else:
     SiPMName=dataFile[dataFile.find("/")+1:(dataFile.find("_"))]
-
+fileOut.write("%s,%s,%s \n"%(SiPMName,dataFile[dataFile.find("V")-4:dataFile.find("V")+1],dataFile[dataFile.find("ain")-3:dataFile.find("ain")+7]))
 print("SiPM ",SiPMName)
 if dataType==1:
     print ("Making SPE fits")
     try:
-        r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try1",5,SiPMName)
+        r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,10,dataFile,"try1",5,SiPMName)
         
-        print (percentageErr,percentageErr2,percentageErr3)
+        print (cov2,percentageErr,percentageErr2,percentageErr3)
+        fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
     except:
         print ("Error ocurred during first fitting, will try again")
         pass
@@ -306,8 +307,9 @@ if dataType==1:
     if r2[1] <0:
         try:
             print ("Fitting again,we got a negative value for ADC/PE, take 2")
-            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try2",5,SiPMName)
-            print("try 2, ",percentageErr,percentageErr2,percentageErr3)
+            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try2",5,SiPMName)
+            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+            print("try 2, ",cov2,percentageErr,percentageErr2,percentageErr3)
         except:
             
             pass
@@ -316,17 +318,17 @@ if dataType==1:
         #try to refit not sure what should change LOL
         try:
             print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
-            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",15,SiPMName)
-            
-            print("try3, ",percentageErr,percentageErr2,percentageErr3)
+            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",15,SiPMName)
+            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+            print("try3, ",cov2,percentageErr,percentageErr2,percentageErr3)
         except:
             pass
     else:
         try:
             print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
-            r2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try3",0,SiPMName)
-        
-            print("try3, ",percentageErr,percentageErr2,percentageErr3)
+            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try3",0,SiPMName)
+            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+            print("try3, ",cov2,percentageErr,percentageErr2,percentageErr3)
         except:
             pass
         
@@ -337,11 +339,12 @@ elif dataType==2:
     
     
     x=np.linspace(0,7950,7950)
-    
+    #MPVs = np.zeros(activeChannel)
+    #MPV_errs=np.zeros(activeChannel)
     #we want to calculate this for however many channels we have ;)
     
-    for i_channel in range(0,activeChannel):
-        content, bins, _ = plt.hist(data['data']['high_gain'][:,i_channel],bins=7950
+    for i_channel in range(0,activeChannels):
+        content, bins, _ = plt.hist(data['data']['low_gain'][:,i_channel],bins=7950
                             ,range=(0,7950),
                         histtype='step', density  = True)
         centers = (bins[:-1] + bins[1:])/2
@@ -349,8 +352,19 @@ elif dataType==2:
         eta=200
         sigma=200
         A=np.max(content)
-        coeff, pcov = scipy.optimize.curve_fit(pylandau.langau, centers1,content1, p0=(mpv, eta, sigma, A))
-        
-    
+        print (A)
+        coeff, pcov = scipy.optimize.curve_fit(pylandau.langau, centers,content, p0=(mpv, eta, sigma, A))
+        plt.plot(x, pylandau.langau(x,*coeff  ),color='b', label = f'Landau-Gauss Fit, MPV = {coeff[0]:.2f} PE', lw = 3)
+        plt.ylabel("Normalized Counts")
+        plt.xlabel("PE ")
+        plt.axvline(x = coeff[0], color = 'r',alpha=0.5,lw=3)
+
+        plt.legend()
+        plt.title('Muon Spectra')
+        plt.savefig(dataFile + '/' + 'langausFit'+str(i_channel)+'.png')
+        plt.clf()
+        #MPVs[i_channel]=mpv
+        #MPV_errs[i_channel]=np.sqrt(np.diag(pcov))[0]
+        fileOut.write("%s,%f,%f \n"%("Muon MPV for chan: "+str(i_channel),coeff[0],np.sqrt(np.diag(pcov))[0]))
     #plt.plot()
 
