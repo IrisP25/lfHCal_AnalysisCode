@@ -139,8 +139,8 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     from math import factorial
     
 
-    window_size = np.abs(np.int(window_size))
-    order = np.abs(np.int(order))
+    window_size = np.abs(int(window_size))
+    order = np.abs(int(order))
     order_range = range(order+1)
     half_window = (window_size -1) // 2
     # precompute coefficients
@@ -276,7 +276,7 @@ parser.add_argument("activeChannels",help="Number of channels in run")
 args=parser.parse_args()
 activeChannels=int(args.activeChannels)
 dataType=int(args.typeOfData)
-dataFile=str(args.inputDirectory)
+dataFile=str(args.inputDirectory)+"/"
 
 print ("Analyzing directory: ",dataFile)
 data = parseData(args.inputDirectory,activeChannels)
@@ -304,33 +304,44 @@ if dataType==1:
     ##I should check here that the values we get from the fitter actually make sense. Because we don't want to
     #rerun unless it's needed.
 
-    if r2[1] <0:
-        try:
-            print ("Fitting again,we got a negative value for ADC/PE, take 2")
-            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try2",5,SiPMName)
-            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
-            print("try 2, ",cov2,percentageErr,percentageErr2,percentageErr3)
-        except:
-            
-            pass
+    
+    try:
+        print ("Fitting again,we got a negative value for ADC/PE, take 2")
+        r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try2",5,SiPMName)
+        fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+        print("try 2, ",cov2,percentageErr,percentageErr2,percentageErr3)
+    except:
+        print ("JK FIT STILL NOT WORKING :/ ")
+        pass
         
-    if abs(percentageErr3)> 4:
+    try:
         #try to refit not sure what should change LOL
-        try:
-            print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
-            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",15,SiPMName)
-            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
-            print("try3, ",cov2,percentageErr,percentageErr2,percentageErr3)
-        except:
-            pass
-    else:
-        try:
-            print ("Fitting again, the fitter worked but it wasn't a good fit trying again")
-            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,15,dataFile,"try3",0,SiPMName)
-            fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
-            print("try3, ",cov2,percentageErr,percentageErr2,percentageErr3)
-        except:
-            pass
+    
+        print ("Fitting again, the fitter didn't but it wasn't a good fit trying again")
+        r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",15,SiPMName)
+        fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+        print("try3, ",cov2,percentageErr,percentageErr2,percentageErr3)
+    except:
+        print ("JK FIT STILL NOT WORKING :/ TRY 3")
+        pass
+        
+    try:
+            print ("Fitting again, the fitter didn't work for some reason, trying one last time... ")
+            r2,cov2,percentageErr,percentageErr2,percentageErr3 = CalculateSiPMGain(data,20,dataFile,"try3",20,SiPMName)
+            if ( math.isinf(np.sqrt(np.diag(cov2))[1])):
+                print ("Whoops covariant matrix didn't converge ignore this fit")
+            else:
+                fileOut.write("%s,%f,%f \n"%("ADC/PE",r2[1],np.sqrt(np.diag(cov2))[1]))
+                print("try4, ",cov2,percentageErr,percentageErr2,percentageErr3)
+                try:
+                    cov2
+                except NameError:
+                    print ("Still didn't work, check the data")
+                    pass
+    except:
+        print ("Try 4 didn't work, check the data, code EXITING NOW :) ")
+        fileOut.write("Don't use this fit check data first :)")
+        exit()
         
 elif dataType==2:
     print ("Analyzing cosmic data" )
